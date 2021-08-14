@@ -4,14 +4,14 @@ using UnityEngine;
 using Cinemachine;
 
 [RequireComponent(typeof(PersonScript))]
-[RequireComponent(typeof(InventoryScript))]
+[RequireComponent(typeof(WeaponManager))]
 public class PersonController : MonoBehaviour
 {
 	[Header("Debug")]
 	public bool DebugAim;
 
 	private PersonScript _Person;
-	private InventoryScript _Inventory;
+	private WeaponManager _WeaponManager;
 	private CapsuleCollider _CapsuleCollider;
 	private Comands _ControlData;
 	private Transform _Camera;
@@ -42,7 +42,7 @@ public class PersonController : MonoBehaviour
 		if (_CameraFollowPoint == null) SetCameraFollowPoint();
 		_CapsuleCollider = GetComponent<CapsuleCollider>();
 		_Person = GetComponent<PersonScript>();
-		_Inventory = GetComponent<InventoryScript>();
+		_WeaponManager = GetComponent<WeaponManager>();
 		_ControlData = new Comands();
 		_Camera = Camera.main == null ? null : Camera.main.transform;
 		AddTakebleObjectsChecker();
@@ -54,7 +54,7 @@ public class PersonController : MonoBehaviour
 	{
 		_CameraFollowPoint.localPosition = Vector3.up * _CapsuleCollider.height * _CameraFollowPointHeight;
 		_PointDuplicateCameraRotation.rotation = Quaternion.Euler(Vector3.up * _Camera.rotation.eulerAngles.y);
-		ControlPerson();
+		UpdateComands();
 
 		if (_ControlData.Aim) SetAimPoint();
 		_Person.SetComands(_ControlData);
@@ -63,9 +63,9 @@ public class PersonController : MonoBehaviour
 		else _AimCinemachine.Priority = _DefaultCinemachine.Priority - 1;
 
 		_AimTargetUI.SetActive(_Person.Aim);
-
+		_CurrentWeaponIndex = (_CurrentWeaponIndex + _ControlData.WeaponIndexDelta) % WeaponManager.WeaponCellsNumber;
 		ProcessInteract();
-		_Person.Weapon = _Inventory.Weapons[_CurrentWeaponIndex];
+		UpdateWeapon();
 		SyncronizateCinemachine();
 	}
 
@@ -111,30 +111,16 @@ public class PersonController : MonoBehaviour
 		WeaponScript weaponComponent = _ObjectAvailableForInteract.GetComponent<WeaponScript>();
 		if (weaponComponent != null)
 		{
-
-			WeaponScript previousWeapon = _Inventory.AddWeapon(weaponComponent);
-			if (previousWeapon != null)
-			{
-				previousWeapon.transform.SetParent(null);
-				SetColliderEnabled(previousWeapon.gameObject, true);
-			}
+			_WeaponManager.AddWeapon(weaponComponent, true);
 		}
 
-		SetColliderEnabled(_ObjectAvailableForInteract, false);
 		OnInteractiveObjectLost(_ObjectAvailableForInteract);
 	}
 
-	private void SetColliderEnabled(GameObject gObject, bool enabled)
+	private void UpdateWeapon()
 	{
-		var boxCollider = gObject.GetComponent<BoxCollider>();
-		var capsuleCollider = gObject.GetComponent<CapsuleCollider>();
-		var sphereCollider = gObject.GetComponent<SphereCollider>();
-		var meshCollider = gObject.GetComponent<MeshCollider>();
-
-		if (boxCollider != null) boxCollider.enabled = enabled;
-		if (capsuleCollider != null) capsuleCollider.enabled = enabled;
-		if (sphereCollider != null) sphereCollider.enabled = enabled;
-		if (meshCollider != null) meshCollider.enabled = enabled;
+		if (_Person.Weapon != _WeaponManager.Weapons[_CurrentWeaponIndex])
+			_Person.Weapon = _WeaponManager.PutOutWeaponFromHolder(_CurrentWeaponIndex);
 	}
 
 	private void SetAimPoint()
@@ -168,10 +154,15 @@ public class PersonController : MonoBehaviour
 		}
 	}
 
-	private void ControlPerson()
+	private void UpdateComands()
 	{
 		float h = Input.GetAxis("Horizontal");
 		float v = Input.GetAxis("Vertical");
+		float mouseWheel = Input.GetAxis("Mouse ScrollWheel");
+
+		if (mouseWheel > 0) _ControlData.WeaponIndexDelta = 1;
+		else if (mouseWheel < 0) _ControlData.WeaponIndexDelta = -1;
+		else if (mouseWheel == 0) _ControlData.WeaponIndexDelta = 0;
 
 		if (Input.GetKeyDown(KeyCode.C))
 			_ControlData.Crouch = !_ControlData.Crouch;
@@ -252,5 +243,6 @@ public class Comands
 {
 	public Vector3 Move;
 	public float TurnAngle;
+	public int WeaponIndexDelta;
 	public bool Crouch, LowCrouch, Jump, WalkSlow, Sprint, Interact, Aim, Shoot, ReloadGun;
 }

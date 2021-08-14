@@ -182,7 +182,6 @@ public class PersonScript : MonoBehaviour
 
 	private void OnWeaponChanged()
 	{
-		if (_CurrentWeapon != null) _CurrentWeapon.transform.SetParent(null);
 		_CurrentWeapon = Weapon;
 		UpdateWeaponFlags();
 
@@ -199,8 +198,8 @@ public class PersonScript : MonoBehaviour
 	{
 		_UseAnyGun = Weapon != null;
 		_UseKnife = Weapon != null && Weapon.Type == WeaponType.Knife;
-		_UseKnife = Weapon != null && Weapon.Type == WeaponType.Pistol;
-		_UseKnife = Weapon != null && Weapon.Type == WeaponType.MachineGun;
+		_UsePistol = Weapon != null && Weapon.Type == WeaponType.Pistol;
+		_UseMachineGun = Weapon != null && Weapon.Type == WeaponType.MachineGun;
 	}
 
 	private void ProcessAim(bool aim)

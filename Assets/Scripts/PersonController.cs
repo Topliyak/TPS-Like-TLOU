@@ -63,7 +63,6 @@ public class PersonController : MonoBehaviour
 		else _AimCinemachine.Priority = _DefaultCinemachine.Priority - 1;
 
 		_AimTargetUI.SetActive(_Person.Aim);
-		_CurrentWeaponIndex = (_CurrentWeaponIndex + _ControlData.WeaponIndexDelta) % WeaponManager.WeaponCellsNumber;
 		ProcessInteract();
 		UpdateWeapon();
 		SyncronizateCinemachine();
@@ -108,7 +107,7 @@ public class PersonController : MonoBehaviour
 			return;
 		}
 
-		WeaponScript weaponComponent = _ObjectAvailableForInteract.GetComponent<WeaponScript>();
+		FirearmScript weaponComponent = _ObjectAvailableForInteract.GetComponent<FirearmScript>();
 		if (weaponComponent != null)
 		{
 			_WeaponManager.AddWeapon(weaponComponent, true);
@@ -119,6 +118,9 @@ public class PersonController : MonoBehaviour
 
 	private void UpdateWeapon()
 	{
+		_CurrentWeaponIndex = (_CurrentWeaponIndex + _ControlData.WeaponIndexDelta) % WeaponManager.WeaponCellsNumber;
+		if (_CurrentWeaponIndex < 0) _CurrentWeaponIndex = WeaponManager.WeaponCellsNumber + _CurrentWeaponIndex;
+
 		if (_Person.Weapon != _WeaponManager.Weapons[_CurrentWeaponIndex])
 			_Person.Weapon = _WeaponManager.PutOutWeaponFromHolder(_CurrentWeaponIndex);
 	}

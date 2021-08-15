@@ -35,7 +35,7 @@ public class PersonScript : MonoBehaviour
 	private const string _UseKnifeAnimatorParameter = "useKnife";
 	private const string _UsePistolAnimatorParameter = "usePistol";
 	private const string _useMachineGunAnimatorParameter = "useMachineGun";
-	private WeaponScript _CurrentWeapon;
+	private FirearmScript _CurrentWeapon;
 	private Transform _LeftHandIK;
 	private Transform _RightHandIK;
 	private Transform _RightHand;
@@ -66,7 +66,7 @@ public class PersonScript : MonoBehaviour
 	[SerializeField] float _JumpForce;
 
 	[Header("Weapon")]
-	public WeaponScript Weapon;
+	public FirearmScript Weapon;
 	[SerializeField] Vector3 _WeaponLocalPositionInHand;
 	[SerializeField] Vector3 _WeaponLocalRotationInHand;
 
@@ -115,6 +115,7 @@ public class PersonScript : MonoBehaviour
 
 		if (IsGrounded) ApplyExtraTurn(comands.TurnAngle);
 
+		if (Aim && comands.Shoot && Weapon != null) Weapon.Shoot(AimPoint);
 		UpdateAnimator(comands.Move);
 		UpdateAnimatorLayersWeight();
 		UpdateIKReferenceTransform();

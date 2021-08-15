@@ -395,7 +395,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh17498
+  m_Name: pb_Mesh17502
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -757,7 +757,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh17554
+  m_Name: pb_Mesh17550
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -2017,7 +2017,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ac2bed813ef3c224dbb806560eb27349, type: 3}
+  m_Script: {fileID: 11500000, guid: 745a807ab42391b418cc8beb3501e674, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1 &1603024725
@@ -2780,6 +2780,21 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -8218419453272301067, guid: 16a34ae84d56f8a46a90e4f5ad719e1f,
+        type: 3}
+      propertyPath: _Delay
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8218419453272301067, guid: 16a34ae84d56f8a46a90e4f5ad719e1f,
+        type: 3}
+      propertyPath: _BulletStartImpulse
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8218419453272301067, guid: 16a34ae84d56f8a46a90e4f5ad719e1f,
+        type: 3}
+      propertyPath: _BulletStartVelocity
+      value: 715
+      objectReference: {fileID: 0}
     - target: {fileID: 106470761458491720, guid: 16a34ae84d56f8a46a90e4f5ad719e1f,
         type: 3}
       propertyPath: m_Name

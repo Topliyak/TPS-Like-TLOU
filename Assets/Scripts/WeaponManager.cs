@@ -6,7 +6,7 @@ public class WeaponManager : MonoBehaviour
 {
 	public Dictionary<WeaponType, Transform> WeaponTypeHolderPairs { get; private set; }
 	public Dictionary<WeaponType, int> WeaponTypeIndexPairs { get; private set; }
-	public WeaponScript[] Weapons { get; private set; }
+	public FirearmScript[] Weapons { get; private set; }
 	public const int WeaponCellsNumber = 4;
 
 	[SerializeField] Transform KnifeHolder;
@@ -15,7 +15,7 @@ public class WeaponManager : MonoBehaviour
 
 	private void PutWeaponToHolder(int weaponIndex)
 	{
-		WeaponScript weapon = Weapons[weaponIndex];
+		FirearmScript weapon = Weapons[weaponIndex];
 
 		if (weapon != null)
 		{
@@ -25,9 +25,9 @@ public class WeaponManager : MonoBehaviour
 		}
 	}
 
-	public WeaponScript PutOutWeaponFromHolder(int index, bool putOtherWeaponsToHolder = true)
+	public FirearmScript PutOutWeaponFromHolder(int index, bool putOtherWeaponsToHolder = true)
 	{
-		WeaponScript weapon = Weapons[index];
+		FirearmScript weapon = Weapons[index];
 
 		if (weapon != null)
 		{
@@ -41,9 +41,9 @@ public class WeaponManager : MonoBehaviour
 		return weapon;
 	}
 
-	public WeaponScript RemoveWeapon(int index)
+	public FirearmScript RemoveWeapon(int index)
 	{
-		WeaponScript weapon = PutOutWeaponFromHolder(index, false);
+		FirearmScript weapon = PutOutWeaponFromHolder(index, false);
 		Weapons[index] = null;
 		if (weapon != null) UnlinkInteractiveObject(weapon.gameObject);
 		
@@ -55,12 +55,12 @@ public class WeaponManager : MonoBehaviour
 	/// </summary>
 	/// <param name="weapon"></param>
 	/// <returns></returns>
-	public WeaponScript AddWeapon(WeaponScript weapon, bool putToHolder)
+	public FirearmScript AddWeapon(FirearmScript weapon, bool putToHolder)
 	{
 		if (weapon == null) throw new System.Exception("Null reference exception");
 
 		int index = WeaponTypeIndexPairs[weapon.Type];
-		WeaponScript previousWeapon = RemoveWeapon(index);
+		FirearmScript previousWeapon = RemoveWeapon(index);
 		SetColliderEnabled(weapon.gameObject, false);
 		Weapons[index] = weapon;
 		if (putToHolder) PutWeaponToHolder(index);
@@ -109,7 +109,7 @@ public class WeaponManager : MonoBehaviour
 
 	private void Awake()
 	{
-		Weapons = new WeaponScript[WeaponCellsNumber];
+		Weapons = new FirearmScript[WeaponCellsNumber];
 		InitWeaponIndexDictionary();
 		InitHolderDictionary();
 	}

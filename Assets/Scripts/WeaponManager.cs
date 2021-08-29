@@ -6,7 +6,7 @@ public class WeaponManager : MonoBehaviour
 {
 	public Dictionary<WeaponType, Transform> WeaponTypeHolderPairs { get; private set; }
 	public Dictionary<WeaponType, int> WeaponTypeIndexPairs { get; private set; }
-	public FirearmScript[] Weapons { get; private set; }
+	public Firearm[] Weapons { get; private set; }
 	public const int WeaponCellsNumber = 4;
 
 	[SerializeField] Transform KnifeHolder;
@@ -15,7 +15,7 @@ public class WeaponManager : MonoBehaviour
 
 	private void PutWeaponToHolder(int weaponIndex)
 	{
-		FirearmScript weapon = Weapons[weaponIndex];
+		Firearm weapon = Weapons[weaponIndex];
 
 		if (weapon != null)
 		{
@@ -25,9 +25,9 @@ public class WeaponManager : MonoBehaviour
 		}
 	}
 
-	public FirearmScript PutOutWeaponFromHolder(int index, bool putOtherWeaponsToHolder = true)
+	public Firearm PutOutWeaponFromHolder(int index, bool putOtherWeaponsToHolder = true)
 	{
-		FirearmScript weapon = Weapons[index];
+		Firearm weapon = Weapons[index];
 
 		if (weapon != null)
 		{
@@ -41,11 +41,11 @@ public class WeaponManager : MonoBehaviour
 		return weapon;
 	}
 
-	public FirearmScript RemoveWeapon(int index)
+	public Firearm RemoveWeapon(int index)
 	{
-		FirearmScript weapon = PutOutWeaponFromHolder(index, false);
+		Firearm weapon = PutOutWeaponFromHolder(index, false);
 		Weapons[index] = null;
-		if (weapon != null) UnlinkInteractiveObject(weapon.gameObject);
+		if (weapon != null) UnlinkWeapon(weapon.gameObject);
 		
 		return weapon;
 	}
@@ -55,36 +55,42 @@ public class WeaponManager : MonoBehaviour
 	/// </summary>
 	/// <param name="weapon"></param>
 	/// <returns></returns>
-	public FirearmScript AddWeapon(FirearmScript weapon, bool putToHolder)
+	public Firearm AddWeapon(Firearm weapon, bool putToHolder)
 	{
 		if (weapon == null) throw new System.Exception("Null reference exception");
 
 		int index = WeaponTypeIndexPairs[weapon.Type];
-		FirearmScript previousWeapon = RemoveWeapon(index);
-		SetColliderEnabled(weapon.gameObject, false);
+		Firearm previousWeapon = RemoveWeapon(index);
+		LinkWeapon(weapon.gameObject);
 		Weapons[index] = weapon;
 		if (putToHolder) PutWeaponToHolder(index);
 
 		return previousWeapon;
 	}
 
-	private void SetColliderEnabled(GameObject gObject, bool enabled)
+	private void LinkWeapon(GameObject gObject)
 	{
-		var boxCollider = gObject.GetComponent<BoxCollider>();
-		var capsuleCollider = gObject.GetComponent<CapsuleCollider>();
-		var sphereCollider = gObject.GetComponent<SphereCollider>();
-		var meshCollider = gObject.GetComponent<MeshCollider>();
+		Rigidbody rb = gObject.GetComponent<Rigidbody>();
+		if (rb != null)
+		{
+			rb.useGravity = false;
+			rb.constraints = RigidbodyConstraints.FreezeAll;
+		}
 
-		if (boxCollider != null) boxCollider.enabled = enabled;
-		if (capsuleCollider != null) capsuleCollider.enabled = enabled;
-		if (sphereCollider != null) sphereCollider.enabled = enabled;
-		if (meshCollider != null) meshCollider.enabled = enabled;
+		gObject.GetComponent<Collider>().enabled = false;
 	}
 
-	private void UnlinkInteractiveObject(GameObject gObject)
+	private void UnlinkWeapon(GameObject gObject)
 	{
 		gObject.transform.SetParent(null);
-		SetColliderEnabled(gObject, true);
+		Rigidbody rb = gObject.GetComponent<Rigidbody>();
+		if (rb != null)
+		{
+			rb.useGravity = true;
+			rb.constraints = RigidbodyConstraints.None;
+		}
+
+		gObject.GetComponent<Collider>().enabled = true;
 	}
 
 	private void InitHolderDictionary()
@@ -109,7 +115,7 @@ public class WeaponManager : MonoBehaviour
 
 	private void Awake()
 	{
-		Weapons = new FirearmScript[WeaponCellsNumber];
+		Weapons = new Firearm[WeaponCellsNumber];
 		InitWeaponIndexDictionary();
 		InitHolderDictionary();
 	}

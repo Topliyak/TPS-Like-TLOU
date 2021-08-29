@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 [RequireComponent(typeof(Animator))]
@@ -13,6 +14,7 @@ public class PersonScript : MonoBehaviour
 	public bool Crouch { get; private set; }
 	public bool LowCrouch { get; private set; }
 	public bool Aim { get; private set; }
+	public bool Climb { get; private set; }
 
 	private Vector3 _GroundNormal;
 	private bool _GoBack;
@@ -23,19 +25,7 @@ public class PersonScript : MonoBehaviour
 	private bool _UseKnife;
 	private bool _UsePistol;
 	private bool _UseMachineGun;
-	private const string _HorizontalAnimatorParameter = "horizontal";
-	private const string _VerticalAnimatorParameter = "vertical";
-	private const string _ForwardAnimatorParameter = "forward";
-	private const string _GoBackAnimatorParameter = "goBack";
-	private const string _IsGroundedAnimatorParameter = "isGrounded";
-	private const string _JumpAnimatorParameter = "jump";
-	private const string _CrouchAnimatorParameter = "crouch";
-	private const string _LowCrouchAnimatorParameter = "lowCrouch";
-	private const string _UseAnyGunAnimatorParameter = "useAnyGun";
-	private const string _UseKnifeAnimatorParameter = "useKnife";
-	private const string _UsePistolAnimatorParameter = "usePistol";
-	private const string _useMachineGunAnimatorParameter = "useMachineGun";
-	private FirearmScript _CurrentWeapon;
+	private Firearm _CurrentWeapon;
 	private Transform _LeftHandIK;
 	private Transform _RightHandIK;
 	private Transform _RightHand;
@@ -45,13 +35,27 @@ public class PersonScript : MonoBehaviour
 	private float _Forward;
 	private float _Jump;
 	private float _IsGroundedRayDistance;
-	private CapsuleColliderProfile _CurrentCapsuleProfule;
+	private CapsuleColliderProfile _CurrentCapsuleProfile;
+	private Transform _ClimbRef;
+	private bool _ShouldClose;
+	private bool _ShouldRotate;
+	private Vector3 _PointCloseTo;
+	private Quaternion _PointRotateTo;
+	private float _CoeffCloseAndRotateBy;
+	const string _TurnOffAlwaysGroundedMethodName = "TurnOffAlwaysGrounded";
+
+	[Header("Debug")]
+	[SerializeField] bool _AlwaysGrounded;
+	[SerializeField] bool _DebugClimb;
+	[SerializeField] Climber.ClimbType _DebuggedClimbType;
+	[SerializeField] Transform _Cube;
 
 	[Header("IsGrounded check")]
 	[SerializeField] float _IsGroundedDefaultRayDistance;
 	[SerializeField] LayerMask _IsGroundedLayerMask;
 
 	[Header("CapsuleCollider Profiles")]
+	[SerializeField] float _DelayToTurnOffAlwaysGroundedAfterLowCrouch;
 	[SerializeField] float _CapsuleRadiusLerp;
 	[SerializeField] float _CapsuleHeightLerp;
 	[SerializeField] float _CapsuleCenterLerp;
@@ -65,8 +69,11 @@ public class PersonScript : MonoBehaviour
 	[SerializeField] float _Decceleration;
 	[SerializeField] float _JumpForce;
 
+	[Header("Climb")]
+	[SerializeField] Climber _Climber;
+
 	[Header("Weapon")]
-	public FirearmScript Weapon;
+	public Firearm Weapon;
 	[SerializeField] Vector3 _WeaponLocalPositionInHand;
 	[SerializeField] Vector3 _WeaponLocalRotationInHand;
 
@@ -83,12 +90,21 @@ public class PersonScript : MonoBehaviour
 		_Animator = GetComponent<Animator>();
 		_Rigidbody = GetComponent<Rigidbody>();
 		_Collider = GetComponent<CapsuleCollider>();
+		_Climber.Initialize();
+		Climb = false;
 		InitBones();
+		InitClimbRef();
 	}
 
 	private void Update()
 	{
 		if (Weapon != _CurrentWeapon) OnWeaponChanged();
+	}
+
+	private void FixedUpdate()
+	{
+		if (_ShouldClose) CloseToPoint();
+		if (_ShouldRotate) RotateToPoint();
 	}
 
 	private void OnAnimatorIK(int layerIndex)
@@ -104,21 +120,118 @@ public class PersonScript : MonoBehaviour
 		CheckIsGrounded();
 		ProcessAim(comands.Aim);
 		ProcessVelocity(comands.Move, comands.Sprint, comands.WalkSlow);
-		_CurrentCapsuleProfule = _StandCapsule;
 		ProcessCrouch(comands.Crouch);
 		ProcessLowCrouch(comands.LowCrouch);
+		ProcessClimb(comands.Jump, comands.ClimbPointDetected, comands.ClimbPosition, comands.ClimbRotation);
 		UpdateCapsuleCollider();
 
-		if (IsGrounded) ProcessJump(comands.Jump);
-		else ProcessInAir();
+		if (!Climb && !Crouch && !LowCrouch)
+		{
+			if (IsGrounded) ProcessJump(comands.Jump);
+			else ProcessInAir();
+		}
+		else
+		{
+			_Animator.applyRootMotion = true;
+		}
 
-
-		if (IsGrounded) ApplyExtraTurn(comands.TurnAngle);
+		if (IsGrounded && !Climb) ApplyExtraTurn(comands.TurnAngle);
+		RotateNormalUpwards(LowCrouch ? _GroundNormal : Vector3.up);
 
 		if (Aim && comands.Shoot && Weapon != null) Weapon.Shoot(AimPoint);
 		UpdateAnimator(comands.Move);
 		UpdateAnimatorLayersWeight();
 		UpdateIKReferenceTransform();
+	}
+
+	private void CloseToPoint()
+	{
+		transform.position = Vector3.Lerp(transform.position, _PointCloseTo, _CoeffCloseAndRotateBy * Time.deltaTime);
+	}
+
+	private void RotateToPoint()
+	{
+		transform.rotation = Quaternion.Lerp(transform.rotation, _PointRotateTo, _CoeffCloseAndRotateBy * Time.deltaTime);
+	}
+
+	private void OnClimbed()
+	{
+		Climb = false;
+		_Climber.FinishingClimb = false;
+		_Collider.enabled = true;
+		_Rigidbody.useGravity = true;
+		_Rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
+		_ClimbRef.SetParent(transform);
+		_ClimbRef.localPosition = Vector3.zero;
+	}
+
+	private void ProcessClimb(bool jump, bool climbPointDetected, Vector3 climbPosition, Quaternion climbRotation)
+	{
+		if (Climb && !_Climber.FinishingClimb)
+		{
+			// Debug
+			if (_DebugClimb)
+			{
+				_Climber.Initialize();
+				_Climber.CurrentClimbType = _DebuggedClimbType;
+			}
+
+			//Vector3 newPos = _ClimbRef.position + _ClimbRef.TransformVector(_Climber.Offset);
+			//transform.position = Vector3.Lerp(transform.position, newPos, _Climber.OffsetLerp * Time.deltaTime);
+			//transform.rotation = Quaternion.Lerp(transform.rotation, _ClimbRef.rotation, _Climber.OffsetLerp * Time.deltaTime);
+			_Climber.DistanceToClimbPoint = Vector3.Distance(transform.position, _PointCloseTo);
+
+			if (!_DebugClimb && _Climber.DistanceToClimbPoint < _Climber.MinDistanceToClimbRef && 
+				Quaternion.Angle(transform.rotation, _ClimbRef.rotation) < _Climber.MinDistanceToClimbRef)
+			{
+				_Climber.FinishingClimb = true;
+				_ShouldClose = _ShouldRotate = false;
+			}
+			else
+			{
+				_Climber.FinishingClimb = false;
+			}
+		}
+		else if (!Climb && climbPointDetected && IsGrounded && jump)
+		{
+			Climb = true;
+			_Climber.FinishingClimb = false;
+			_Collider.enabled = false;
+			_Rigidbody.useGravity = false;
+			_Rigidbody.constraints = RigidbodyConstraints.None;
+			_ClimbRef.SetParent(null);
+			_ClimbRef.position = climbPosition;
+			_ClimbRef.rotation = Quaternion.Euler(Vector3.up * climbRotation.eulerAngles.y);
+			_Rigidbody.velocity = Vector3.zero;
+			FindBestClimbType();
+			print(_Climber.CurrentClimbType);
+			_PointCloseTo = _ClimbRef.position + _ClimbRef.TransformVector(_Climber.Offset);
+			_PointRotateTo = _ClimbRef.rotation;
+			_CoeffCloseAndRotateBy = _Climber.OffsetLerp;
+			_ShouldClose = _ShouldRotate = true;
+		}
+	}
+
+	private void FindBestClimbType()
+	{
+		Climber.ClimbType bestClimbType = Climber.ClimbType.ClimbLow;
+		float minMagnitude = (_ClimbRef.position + _Climber.ClimbTypeOffsetPairs[Climber.ClimbType.ClimbLow] - transform.position).magnitude;
+
+		foreach (var climbType in _Climber.ClimbTypeOffsetPairs.Keys)
+		{
+			float currentMagnitude = (_ClimbRef.position + _Climber.ClimbTypeOffsetPairs[climbType] - transform.position).magnitude;
+
+			if (currentMagnitude < minMagnitude)
+			{
+				minMagnitude = currentMagnitude;
+				bestClimbType = climbType;
+			}
+		}
+
+		foreach (var climbType in _Climber.ClimbTypeStatusPairs.Keys.ToArray())
+			_Climber.ClimbTypeStatusPairs[climbType] = climbType == bestClimbType;
+
+		_Climber.CurrentClimbType = bestClimbType;
 	}
 
 	private void SetLookAtWeight()
@@ -205,7 +318,7 @@ public class PersonScript : MonoBehaviour
 
 	private void ProcessAim(bool aim)
 	{
-		Aim = IsGrounded && aim && Weapon != null ? true : false;
+		Aim = IsGrounded && !Climb && aim && Weapon != null ? true : false;
 	}
 
 	private void ProcessInAir()
@@ -218,8 +331,6 @@ public class PersonScript : MonoBehaviour
 	{
 		if (jump)
 		{
-			IsGrounded = false;
-			_Animator.applyRootMotion = false;
 			_IsGroundedRayDistance = 0;
 			_Rigidbody.AddForce(Vector3.up * _JumpForce, ForceMode.Impulse);
 		}
@@ -230,7 +341,6 @@ public class PersonScript : MonoBehaviour
 		if (IsGrounded && crouch)
 		{
 			Crouch = true;
-			_CurrentCapsuleProfule = _CrouchCapsule;
 		}
 		else
 		{
@@ -242,9 +352,14 @@ public class PersonScript : MonoBehaviour
 	{
 		if (IsGrounded && lowCrouch)
 		{
+			if (!LowCrouch)
+			{
+				_AlwaysGrounded = true;
+				Invoke(_TurnOffAlwaysGroundedMethodName, _DelayToTurnOffAlwaysGroundedAfterLowCrouch);
+			}
+
 			LowCrouch = true;
 			Crouch = false;
-			_CurrentCapsuleProfule = _LowCrouchCapsule;
 		}
 		else
 		{
@@ -252,12 +367,29 @@ public class PersonScript : MonoBehaviour
 		}
 	}
 
+	private void RotateNormalUpwards(Vector3 normal)
+	{
+		Vector3 yz = Quaternion.LookRotation(transform.forward, normal).eulerAngles;
+		float x = Quaternion.LookRotation(transform.right, normal).eulerAngles.z;
+		transform.rotation = Quaternion.Euler(x, yz.y, yz.z);
+	}
+
+	private void TurnOffAlwaysGrounded() => _AlwaysGrounded = false;
+
+	private void UpdateCurrentCapsuleProfile()
+	{
+		if (Crouch) _CurrentCapsuleProfile = _CrouchCapsule;
+		else if (LowCrouch) _CurrentCapsuleProfile = _LowCrouchCapsule;
+		else _CurrentCapsuleProfile = _StandCapsule;
+	}
+
 	private void UpdateCapsuleCollider()
 	{
-		_Collider.center = Vector3.Lerp(_Collider.center, _CurrentCapsuleProfule.Center, _CapsuleCenterLerp * Time.deltaTime);
-		_Collider.radius = Mathf.Lerp(_Collider.radius, _CurrentCapsuleProfule.Radius, _CapsuleRadiusLerp * Time.deltaTime);
-		_Collider.height = Mathf.Lerp(_Collider.height, _CurrentCapsuleProfule.Height, _CapsuleHeightLerp * Time.deltaTime);
-		_Collider.direction = (int)_CurrentCapsuleProfule.Direction;
+		UpdateCurrentCapsuleProfile();
+		_Collider.center = Vector3.Lerp(_Collider.center, _CurrentCapsuleProfile.Center, _CapsuleCenterLerp * Time.deltaTime);
+		_Collider.radius = Mathf.Lerp(_Collider.radius, _CurrentCapsuleProfile.Radius, _CapsuleRadiusLerp * Time.deltaTime);
+		_Collider.height = Mathf.Lerp(_Collider.height, _CurrentCapsuleProfile.Height, _CapsuleHeightLerp * Time.deltaTime);
+		_Collider.direction = (int)_CurrentCapsuleProfile.Direction;
 	}
 
 	private void ProcessVelocity(Vector3 move, bool sprint, bool walkSlow)
@@ -311,39 +443,58 @@ public class PersonScript : MonoBehaviour
 
 	private void UpdateAnimator(Vector3 move)
 	{
-		_Animator.SetFloat(_HorizontalAnimatorParameter, _Move.x);
-		_Animator.SetFloat(_VerticalAnimatorParameter, _Move.z);
-		_Animator.SetFloat(_ForwardAnimatorParameter, _Forward);
-		_Animator.SetFloat(_JumpAnimatorParameter, _Jump);
-		_Animator.SetBool(_IsGroundedAnimatorParameter, IsGrounded);
-		_Animator.SetBool(_GoBackAnimatorParameter, _GoBack);
-		_Animator.SetBool(_CrouchAnimatorParameter, Crouch);
-		_Animator.SetBool(_LowCrouchAnimatorParameter, LowCrouch);
-		_Animator.SetBool(_UseAnyGunAnimatorParameter, _UseAnyGun);
-		_Animator.SetBool(_UseKnifeAnimatorParameter, _UseKnife);
-		_Animator.SetBool(_UsePistolAnimatorParameter, _UsePistol);
-		_Animator.SetBool(_useMachineGunAnimatorParameter, _UseMachineGun);
+		_Animator.SetFloat(AnimatorParameters.Horizontal, _Move.x);
+		_Animator.SetFloat(AnimatorParameters.Vertical, _Move.z);
+		_Animator.SetFloat(AnimatorParameters.Forward, _Forward);
+		_Animator.SetFloat(AnimatorParameters.Jump, _Jump);
+		_Animator.SetFloat(AnimatorParameters.distanceToClimbPoint, _Climber.DistanceToClimbPoint);
+		_Animator.SetBool(AnimatorParameters.IsGrounded, IsGrounded);
+		_Animator.SetBool(AnimatorParameters.GoBack, _GoBack);
+		_Animator.SetBool(AnimatorParameters.Crouch, Crouch);
+		_Animator.SetBool(AnimatorParameters.LowCrouch, LowCrouch);
+		_Animator.SetBool(AnimatorParameters.UseAnyGun, _UseAnyGun);
+		_Animator.SetBool(AnimatorParameters.UseKnife, _UseKnife);
+		_Animator.SetBool(AnimatorParameters.UsePistol, _UsePistol);
+		_Animator.SetBool(AnimatorParameters.useMachineGun, _UseMachineGun);
+		_Animator.SetBool(AnimatorParameters.climb, Climb);
+		_Animator.SetBool(AnimatorParameters.climbLow, Climb && _Climber.ClimbTypeStatusPairs[Climber.ClimbType.ClimbLow]);
+		_Animator.SetBool(AnimatorParameters.climbLowMiddle, Climb && _Climber.ClimbTypeStatusPairs[Climber.ClimbType.ClimbLowMiddle]);
+		_Animator.SetBool(AnimatorParameters.climbMiddle, Climb && _Climber.ClimbTypeStatusPairs[Climber.ClimbType.ClimbMiddle]);
+		_Animator.SetBool(AnimatorParameters.climbHigh, Climb && _Climber.ClimbTypeStatusPairs[Climber.ClimbType.ClimbHigh]);
+		_Animator.SetBool(AnimatorParameters.finishClimb, _Climber.FinishingClimb);
 	}
 
 	private void CheckIsGrounded()
 	{
 		RaycastHit hit;
-		Vector3 origin = transform.position + Vector3.up * _Collider.height / 2;
+		Vector3 origin = transform.TransformPoint(_Collider.center);
+		//float rayDistance = origin.y - _Collider.bounds.min.y + _IsGroundedRayDistance;
 		float rayDistance = _Collider.height / 2 + _IsGroundedRayDistance;
+		Color rayColor;
 
-		Debug.DrawRay(origin, Vector3.down * rayDistance, Color.green);
-
-		if (Physics.SphereCast(origin, _Collider.radius, Vector3.down, out hit, rayDistance, _IsGroundedLayerMask))
+		//if (Physics.SphereCast(origin, _Collider.radius * 0.9f, Vector3.down, out hit, rayDistance, _IsGroundedLayerMask))
+		if (Physics.SphereCast(origin, _Collider.radius * 0.9f, -transform.up, out hit, rayDistance, _IsGroundedLayerMask))
 		{
 			IsGrounded = true;
 			_Animator.applyRootMotion = true;
 			_GroundNormal = hit.normal;
+			rayColor = Color.green;
 		}
 		else
 		{
 			IsGrounded = false;
 			_Animator.applyRootMotion = false;
 			_GroundNormal = Vector3.up;
+			rayColor = Color.red;
+		}
+
+		//Debug.DrawRay(origin, Vector3.down * rayDistance, rayColor);
+		Debug.DrawRay(origin, -transform.up * rayDistance, rayColor);
+
+		if (_AlwaysGrounded == true)
+		{
+			IsGrounded = true;
+			_Animator.applyRootMotion = true;
 		}
 	}
 
@@ -355,15 +506,10 @@ public class PersonScript : MonoBehaviour
 		_LeftHandIK.SetParent(transform);
 		_RightHandIK.SetParent(transform);
 	}
-}
 
-[System.Serializable]
-class CapsuleColliderProfile
-{
-	public enum CapsuleColliderDirection: byte { X_Axis, Y_Axis, Z_Axis, };
-	
-	public Vector3 Center;
-	public float Radius;
-	public float Height;
-	public CapsuleColliderDirection Direction;
+	private void InitClimbRef()
+	{
+		_ClimbRef = new GameObject("ClimbRef").transform;
+		_ClimbRef.SetParent(transform);
+	}
 }

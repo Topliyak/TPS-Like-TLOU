@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class FirearmScript: MonoBehaviour
+public class Firearm: MonoBehaviour
 {
 	public static FireMode ShootMode = FireMode.PhysicBullet;
 
@@ -58,8 +58,6 @@ public class FirearmScript: MonoBehaviour
 	{
 		BulletScript bullet = Instantiate(_BulletPrefab, _BulletSpawn.position, _BulletSpawn.rotation).GetComponent<BulletScript>();
 		bullet.Launch(target, _BulletStartVelocity, _BulletMass);
-
-		print("Launch Bullet");
 	}
 
 	private void SetCanShoot() => _CanShoot = true;

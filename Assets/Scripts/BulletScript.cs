@@ -18,6 +18,13 @@ public class BulletScript : MonoBehaviour
 				Destroy(gameObject);
 	}
 
+	private void OnCollisionEnter(Collision collision)
+	{
+		print(collision.gameObject.name);
+
+		Destroy(gameObject);
+	}
+
 	public void Launch(Vector3 target, float velocity, float mass)
 	{
 		_Origin = transform.position;

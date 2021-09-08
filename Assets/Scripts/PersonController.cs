@@ -33,6 +33,7 @@ public class PersonController : MonoBehaviour
 	private Vector3 _ClimbPosition;
 	private Quaternion _ClimbRotation;
 	private int _CurrentWeaponIndex = 0;
+	private FewModesButton _CrouchButton;
 
 	[Header("Camera")]
 	[SerializeField] [Range(0, 1)] float _CameraFollowPointHeight;
@@ -56,6 +57,9 @@ public class PersonController : MonoBehaviour
 	[SerializeField] float _MinHelperLocalYPos;
 	[SerializeField] float _MaxHelperLocalYPos;
 
+	[Header("Other")]
+	[SerializeField] float _LowCrouchHoldTime;
+
 	private void Start()
 	{
 		Cursor.visible = false;
@@ -70,6 +74,7 @@ public class PersonController : MonoBehaviour
 		AddPointDuplicateCameraRotation();
 		AddClimbPoint();
 		if (_TakeObjectSprite == null) throw new MissingReferenceException("Take Icon is null");
+		_CrouchButton = new FewModesButton(KeyCode.C, _LowCrouchHoldTime);
 	}
 
 	private void Update()
@@ -378,11 +383,19 @@ public class PersonController : MonoBehaviour
 		else if (mouseWheel < 0) _ControlData.WeaponIndexDelta = -1;
 		else if (mouseWheel == 0) _ControlData.WeaponIndexDelta = 0;
 
-		if (Input.GetKeyDown(KeyCode.C))
-			_ControlData.Crouch = !_ControlData.Crouch;
+		_CrouchButton.Update();
 
-		if (Input.GetKeyDown(KeyCode.X))
+		if (_CrouchButton.GetModeStatus(0))
+		{
+			_ControlData.Crouch = !_ControlData.Crouch;
+			_ControlData.LowCrouch = false;
+		}
+		
+		if (_CrouchButton.GetModeStatus(1))
+		{
 			_ControlData.LowCrouch = !_ControlData.LowCrouch;
+			_ControlData.Crouch = false;
+		}
 
 		if (Input.GetKeyDown(KeyCode.CapsLock))
 			_ControlData.WalkSlow = !_ControlData.WalkSlow;
@@ -397,15 +410,11 @@ public class PersonController : MonoBehaviour
 
 		if (h != 0 || v != 0 || _Person.Aim && _ControlData.Aim)
 		{
-			float difference = (_Camera.rotation.eulerAngles.y + 360) % 360 - (transform.rotation.eulerAngles.y + 360) % 360;
-			float difference1 = (difference + 360) % 360;
-			float difference2 = (difference - 360) % 360;
-
-			_ControlData.TurnAngle = Mathf.Abs(difference1) < Mathf.Abs(difference2) ? difference1 : difference2;
+			_ControlData.ExtraAngle = Quaternion.Euler(0, _Camera.eulerAngles.y - transform.eulerAngles.y, 0);
 		}
 		else
 		{
-			_ControlData.TurnAngle = 0;
+			_ControlData.ExtraAngle = Quaternion.Euler(Vector3.zero);
 		}
 	}
 

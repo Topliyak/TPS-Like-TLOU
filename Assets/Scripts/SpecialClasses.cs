@@ -41,7 +41,7 @@ public class Comands
 	public Vector3 Move;
 	public Vector3 ClimbPosition;
 	public Quaternion ClimbRotation;
-	public float TurnAngle;
+	public Quaternion ExtraAngle;
 	public int WeaponIndexDelta;
 	public bool Crouch, LowCrouch, ClimbPointDetected, Jump, WalkSlow, Sprint, Interact, Aim, Shoot, ReloadGun;
 }

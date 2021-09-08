@@ -41,7 +41,6 @@ public class PersonScript : MonoBehaviour
 	private bool _ShouldRotate;
 	private Vector3 _PointCloseTo;
 	private Quaternion _PointRotateTo;
-	private float _CoeffCloseAndRotateBy;
 	const string _TurnOffAlwaysGroundedMethodName = "TurnOffAlwaysGrounded";
 
 	[Header("Debug")]
@@ -64,7 +63,7 @@ public class PersonScript : MonoBehaviour
 	[SerializeField] CapsuleColliderProfile _LowCrouchCapsule;
 
 	[Header("Move")]
-	[SerializeField] float _TurnSpeed;
+	[SerializeField] float _CoeffCloseAndRotateBy;
 	[SerializeField] float _Acceleration;
 	[SerializeField] float _Decceleration;
 	[SerializeField] float _JumpForce;
@@ -103,8 +102,14 @@ public class PersonScript : MonoBehaviour
 
 	private void FixedUpdate()
 	{
-		if (_ShouldClose) CloseToPoint();
-		if (_ShouldRotate) RotateToPoint();
+		if (_ShouldClose)
+		{
+			CloseToPoint();
+		}
+		if (_ShouldRotate)
+		{
+			RotateToPoint();
+		}
 	}
 
 	private void OnAnimatorIK(int layerIndex)
@@ -123,6 +128,7 @@ public class PersonScript : MonoBehaviour
 		ProcessCrouch(comands.Crouch);
 		ProcessLowCrouch(comands.LowCrouch);
 		ProcessClimb(comands.Jump, comands.ClimbPointDetected, comands.ClimbPosition, comands.ClimbRotation);
+
 		UpdateCapsuleCollider();
 
 		if (!Climb && !Crouch && !LowCrouch)
@@ -135,7 +141,9 @@ public class PersonScript : MonoBehaviour
 			_Animator.applyRootMotion = true;
 		}
 
-		if (IsGrounded && !Climb) ApplyExtraTurn(comands.TurnAngle);
+		if (IsGrounded && !Climb)
+			ApplyExtraTurn(comands.ExtraAngle);
+
 		RotateNormalUpwards(LowCrouch ? _GroundNormal : Vector3.up);
 
 		if (Aim && comands.Shoot && Weapon != null) Weapon.Shoot(AimPoint);
@@ -318,7 +326,7 @@ public class PersonScript : MonoBehaviour
 
 	private void ProcessAim(bool aim)
 	{
-		Aim = IsGrounded && !Climb && aim && Weapon != null ? true : false;
+		Aim = IsGrounded && !LowCrouch && !Climb && aim && Weapon != null ? true : false;
 	}
 
 	private void ProcessInAir()
@@ -436,9 +444,15 @@ public class PersonScript : MonoBehaviour
 		return acceleration;
 	}
 
-	private void ApplyExtraTurn(float turnAngle)
+	//private void ApplyExtraTurn(float turnAngle)
+	//{
+	//	transform.Rotate(0, turnAngle * _TurnSpeed * Time.deltaTime, 0);
+	//}
+
+	private void ApplyExtraTurn(Quaternion extraTurn)
 	{
-		transform.Rotate(0, turnAngle * _TurnSpeed * Time.deltaTime, 0);
+		_PointRotateTo = transform.rotation * extraTurn;
+		_ShouldRotate = true;
 	}
 
 	private void UpdateAnimator(Vector3 move)
